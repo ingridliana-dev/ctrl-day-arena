@@ -87,6 +87,17 @@ export default function Navbar() {
                 )}
 
                 <Link
+                  href="/dashboard"
+                  className={`px-3 py-2 rounded-md text-sm font-medium ${
+                    isActive("/dashboard")
+                      ? "bg-indigo-700 text-white"
+                      : "text-indigo-100 hover:bg-indigo-500"
+                  }`}
+                >
+                  Dashboard
+                </Link>
+
+                <Link
                   href="/profile"
                   className={`px-3 py-2 rounded-md text-sm font-medium ${
                     isActive("/profile")
@@ -229,6 +240,17 @@ export default function Navbar() {
                   Avaliações
                 </Link>
               )}
+
+              <Link
+                href="/dashboard"
+                className={`block px-3 py-2 rounded-md text-base font-medium ${
+                  isActive("/dashboard")
+                    ? "bg-indigo-700 text-white"
+                    : "text-indigo-100 hover:bg-indigo-500"
+                }`}
+              >
+                Dashboard
+              </Link>
 
               <Link
                 href="/profile"

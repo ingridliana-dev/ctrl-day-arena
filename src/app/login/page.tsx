@@ -15,26 +15,55 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email || !password) {
       setError("Por favor, preencha todos os campos.");
       return;
     }
-    
+
     try {
       setError("");
       setLoading(true);
-      
-      const { error } = await signIn(email, password);
-      
+
+      console.log("Iniciando processo de login para:", email);
+      const { error, user } = await signIn(email, password);
+
       if (error) {
+        console.error("Erro durante o login:", error);
         throw error;
       }
-      
-      // Redirecionar com base no papel do usuário (será implementado posteriormente)
-      router.push("/");
+
+      if (!user) {
+        console.error("Login bem-sucedido, mas nenhum usuário retornado");
+        throw new Error("Falha ao obter dados do usuário. Tente novamente.");
+      }
+
+      console.log("Login bem-sucedido, usuário:", user);
+
+      // Redirecionar com base no papel do usuário
+      if (user.role === "admin") {
+        console.log("Redirecionando para o painel de administração");
+        router.push("/admin");
+      } else if (user.role === "judge") {
+        console.log("Redirecionando para o painel de jurado");
+        router.push("/judge");
+      } else {
+        console.log("Redirecionando para o painel de participante");
+        router.push("/participant");
+      }
     } catch (err: any) {
-      setError(err.message || "Falha ao fazer login. Verifique suas credenciais.");
+      console.error("Erro capturado durante o login:", err);
+
+      // Mensagens de erro mais amigáveis
+      if (err.message?.includes("Invalid login credentials")) {
+        setError("Credenciais inválidas. Verifique seu email e senha.");
+      } else if (err.message?.includes("Email not confirmed")) {
+        setError("Por favor, confirme seu email antes de fazer login.");
+      } else {
+        setError(
+          err.message || "Falha ao fazer login. Verifique suas credenciais."
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -57,7 +86,7 @@ export default function Login() {
             </Link>
           </p>
         </div>
-        
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
             <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
@@ -83,7 +112,7 @@ export default function Login() {
               </div>
             </div>
           )}
-          
+
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <label htmlFor="email-address" className="sr-only">

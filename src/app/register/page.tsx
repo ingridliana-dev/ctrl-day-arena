@@ -41,97 +41,37 @@ export default function Register() {
 
       console.log("Iniciando registro com:", { email, name, role });
 
-      // Registrar diretamente com a API do Supabase
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // Usar o método signUp do contexto de autenticação
+      const { error: signUpError, user } = await signUp(
         email,
         password,
-        options: {
-          data: {
-            name,
-            role,
-          },
-        },
-      });
+        name,
+        role
+      );
 
-      if (authError) {
-        console.error("Erro na autenticação:", authError);
+      if (signUpError) {
+        console.error("Erro no registro:", signUpError);
 
         // Verificar se é um erro de "usuário já existe"
-        if (authError.message && authError.message.includes("already exists")) {
+        if (
+          signUpError.message &&
+          signUpError.message.includes("already exists")
+        ) {
           setError(
             "Este email já está registrado. Por favor, use outro email ou tente fazer login."
           );
         } else {
-          setError(`Erro na autenticação: ${authError.message}`);
+          setError(`Erro no registro: ${signUpError.message}`);
         }
         return;
       }
 
-      if (!authData.user) {
+      if (!user) {
         setError("Erro ao criar usuário. Tente novamente.");
         return;
       }
 
-      console.log("Usuário criado na autenticação:", authData.user.id);
-
-      // Aguardar um pouco para dar tempo ao gatilho de inserir o usuário na tabela users
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Verificar se o usuário foi inserido na tabela users pelo gatilho
-      let userData = null;
-      let retries = 0;
-      const maxRetries = 3;
-
-      while (!userData && retries < maxRetries) {
-        const { data, error } = await supabase
-          .from("users")
-          .select("*")
-          .eq("id", authData.user.id)
-          .single();
-
-        if (data) {
-          userData = data;
-          break;
-        }
-
-        console.log(
-          `Tentativa ${
-            retries + 1
-          } de verificar usuário na tabela users. Aguardando...`
-        );
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        retries++;
-      }
-
-      if (!userData) {
-        console.log(
-          "Usuário não encontrado na tabela users após várias tentativas."
-        );
-        console.log("O gatilho pode não estar funcionando corretamente.");
-
-        // Tentar inserir manualmente
-        try {
-          console.log("Tentando inserir manualmente na tabela users");
-          const { error: insertError } = await supabase.from("users").insert([
-            {
-              id: authData.user.id,
-              email,
-              name,
-              role,
-            },
-          ]);
-
-          if (insertError) {
-            console.error("Erro ao inserir manualmente:", insertError);
-          } else {
-            console.log("Inserção manual bem-sucedida");
-          }
-        } catch (e) {
-          console.error("Exceção ao inserir manualmente:", e);
-        }
-      } else {
-        console.log("Usuário encontrado na tabela users:", userData);
-      }
+      console.log("Usuário criado com sucesso:", user.id);
 
       // Mostrar mensagem de sucesso
       alert(
