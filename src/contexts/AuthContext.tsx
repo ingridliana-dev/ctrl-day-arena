@@ -93,27 +93,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     name: string,
     role: string
   ) => {
-    // Registrar o usuário na autenticação do Supabase
-    const { error: authError, data } = await supabase.auth.signUp({
-      email,
-      password,
-    });
+    try {
+      console.log("Iniciando processo de registro para:", email);
 
-    if (authError || !data.user) {
-      return { error: authError };
-    }
-
-    // Adicionar informações adicionais do usuário no banco de dados
-    const { error: dbError } = await supabase.from("users").insert([
-      {
-        id: data.user.id,
+      // Primeiro, registrar o usuário na autenticação do Supabase
+      const { error: authError, data } = await supabase.auth.signUp({
         email,
-        name,
-        role,
-      },
-    ]);
+        password,
+        options: {
+          data: {
+            name,
+            role,
+          },
+        },
+      });
 
-    return { error: dbError };
+      if (authError || !data.user) {
+        console.error("Erro na autenticação:", authError);
+        return { error: authError };
+      }
+
+      console.log("Usuário criado na autenticação:", data.user.id);
+
+      // Fazer login com o usuário recém-criado para poder inserir na tabela users
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (signInError) {
+        console.error("Erro ao fazer login após registro:", signInError);
+        return { error: signInError };
+      }
+
+      console.log("Login realizado com sucesso após registro");
+
+      // Adicionar informações adicionais do usuário no banco de dados
+      const { error: dbError } = await supabase.from("users").insert([
+        {
+          id: data.user.id,
+          email,
+          name,
+          role,
+        },
+      ]);
+
+      if (dbError) {
+        console.error("Erro ao inserir na tabela users:", dbError);
+        console.error(
+          "Detalhes do erro:",
+          dbError.message,
+          dbError.details,
+          dbError.hint
+        );
+      } else {
+        console.log("Usuário inserido na tabela users com sucesso");
+      }
+
+      // Fazer logout para que o usuário faça login novamente na tela de login
+      await supabase.auth.signOut();
+
+      return { error: dbError, user: data.user };
+    } catch (error) {
+      console.error("Erro inesperado no registro:", error);
+      return { error };
+    }
   };
 
   const signOut = async () => {

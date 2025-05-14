@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 
 export default function Register() {
   const [name, setName] = useState("");
@@ -18,36 +19,134 @@ export default function Register() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!name || !email || !password || !confirmPassword) {
       setError("Por favor, preencha todos os campos.");
       return;
     }
-    
+
     if (password !== confirmPassword) {
       setError("As senhas não coincidem.");
       return;
     }
-    
+
     if (password.length < 6) {
       setError("A senha deve ter pelo menos 6 caracteres.");
       return;
     }
-    
+
     try {
       setError("");
       setLoading(true);
-      
-      const { error } = await signUp(email, password, name, role);
-      
-      if (error) {
-        throw error;
+
+      console.log("Iniciando registro com:", { email, name, role });
+
+      // Registrar diretamente com a API do Supabase
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+            role,
+          },
+        },
+      });
+
+      if (authError) {
+        console.error("Erro na autenticação:", authError);
+
+        // Verificar se é um erro de "usuário já existe"
+        if (authError.message && authError.message.includes("already exists")) {
+          setError(
+            "Este email já está registrado. Por favor, use outro email ou tente fazer login."
+          );
+        } else {
+          setError(`Erro na autenticação: ${authError.message}`);
+        }
+        return;
       }
-      
+
+      if (!authData.user) {
+        setError("Erro ao criar usuário. Tente novamente.");
+        return;
+      }
+
+      console.log("Usuário criado na autenticação:", authData.user.id);
+
+      // Aguardar um pouco para dar tempo ao gatilho de inserir o usuário na tabela users
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Verificar se o usuário foi inserido na tabela users pelo gatilho
+      let userData = null;
+      let retries = 0;
+      const maxRetries = 3;
+
+      while (!userData && retries < maxRetries) {
+        const { data, error } = await supabase
+          .from("users")
+          .select("*")
+          .eq("id", authData.user.id)
+          .single();
+
+        if (data) {
+          userData = data;
+          break;
+        }
+
+        console.log(
+          `Tentativa ${
+            retries + 1
+          } de verificar usuário na tabela users. Aguardando...`
+        );
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        retries++;
+      }
+
+      if (!userData) {
+        console.log(
+          "Usuário não encontrado na tabela users após várias tentativas."
+        );
+        console.log("O gatilho pode não estar funcionando corretamente.");
+
+        // Tentar inserir manualmente
+        try {
+          console.log("Tentando inserir manualmente na tabela users");
+          const { error: insertError } = await supabase.from("users").insert([
+            {
+              id: authData.user.id,
+              email,
+              name,
+              role,
+            },
+          ]);
+
+          if (insertError) {
+            console.error("Erro ao inserir manualmente:", insertError);
+          } else {
+            console.log("Inserção manual bem-sucedida");
+          }
+        } catch (e) {
+          console.error("Exceção ao inserir manualmente:", e);
+        }
+      } else {
+        console.log("Usuário encontrado na tabela users:", userData);
+      }
+
+      // Mostrar mensagem de sucesso
+      alert(
+        "Registro realizado com sucesso! Você será redirecionado para a página de login."
+      );
+
       // Redirecionar para a página de login após o registro bem-sucedido
       router.push("/login");
     } catch (err: any) {
-      setError(err.message || "Falha ao criar conta. Tente novamente.");
+      console.error("Erro durante o registro:", err);
+      setError(
+        `Erro inesperado: ${
+          err.message || "Falha ao criar conta. Tente novamente."
+        }`
+      );
     } finally {
       setLoading(false);
     }
@@ -70,7 +169,7 @@ export default function Register() {
             </Link>
           </p>
         </div>
-        
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
             <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
@@ -96,7 +195,7 @@ export default function Register() {
               </div>
             </div>
           )}
-          
+
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <label htmlFor="name" className="sr-only">
